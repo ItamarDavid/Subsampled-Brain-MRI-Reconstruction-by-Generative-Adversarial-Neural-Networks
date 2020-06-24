@@ -83,7 +83,7 @@ class WNet(nn.Module):
             F_rec_Kspace = self.fftshift(self.inverseFT(rec_Kspace))
         refine_Img = self.img_UNet(F_rec_Kspace)
         rec_img = torch.tanh(refine_Img + F_rec_Kspace)
-
+        rec_img = torch.clamp(rec_img,0,1)
         # if self.train():
         return rec_img, rec_Kspace, F_rec_Kspace
 
