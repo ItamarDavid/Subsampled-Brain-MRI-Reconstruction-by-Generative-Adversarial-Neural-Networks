@@ -10,7 +10,7 @@ from torchvision import transforms
 import glob
 import h5py
 
-from Generator import WNet
+from Networks import WNet
 from utils.data_vis import plot_imgs
 from utils.data_save import save_data
 from utils.dataset import BasicDataset, AspectDataset_multi

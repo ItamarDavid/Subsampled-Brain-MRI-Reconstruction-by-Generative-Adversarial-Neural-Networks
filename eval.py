@@ -13,30 +13,28 @@ def eval_net(net, loader, criterion, device):
     tot_ImL1 = 0
     tot_psnr = 0
     totKspaceL2 = 0
+    print("Validation")
+    for batch in tqdm(loader):
+        masked_Kspace = batch['masked_Kspaces']
+        full_Kspace = batch['target_Kspace']
+        full_img = batch['target_img']
+        masked_Kspace = masked_Kspace.to(device=device, dtype=torch.float32)
+        full_Kspace = full_Kspace.to(device=device, dtype=torch.float32)
+        full_img = full_img.to(device=device, dtype=torch.float32)
 
-    with tqdm(total=n_val, desc='Validation round', unit=' batch') as pbar:
-        for batch in loader:
-            masked_Kspace = batch['masked_Kspace']
-            full_Kspace = batch['full_Kspace']
-            full_img = batch['full_img']
-            masked_Kspace = masked_Kspace.to(device=device, dtype=torch.float32)
-            full_Kspace = full_Kspace.to(device=device, dtype=torch.float32)
-            full_img = full_img.to(device=device, dtype=torch.float32)
 
+        with torch.no_grad():
+            rec_img, rec_Kspace, F_rec_Kspace = net(masked_Kspace)
 
-            with torch.no_grad():
-                rec_img, rec_Kspace, F_rec_Kspace = net(masked_Kspace)
+        FullLoss, ImL2, ImL1, KspaceL2,_ = criterion.calc_gen_loss(rec_img, rec_Kspace, full_img, full_Kspace)
 
-            FullLoss, ImL2, ImL1, KspaceL2 = criterion.calc(rec_img, rec_Kspace, full_img, full_Kspace)
+        tot_FullLoss += FullLoss.item()
+        tot_ImL2 += ImL2.item()
+        psnr = 10 * log10(1 / ImL2.item())
+        tot_psnr += psnr
+        tot_ImL1 += ImL1.item()
+        totKspaceL2 += KspaceL2.item()
 
-            tot_FullLoss += FullLoss.item()
-            tot_ImL2 += ImL2.item()
-            psnr = 10 * log10(1 / ImL2.item())
-            tot_psnr += psnr
-            tot_ImL1 += ImL1.item()
-            totKspaceL2 += KspaceL2.item()
-
-            pbar.update()
 
     net.train()
     return rec_img, full_img, F_rec_Kspace, tot_FullLoss/n_val, tot_ImL2/n_val, tot_ImL1/n_val,\
