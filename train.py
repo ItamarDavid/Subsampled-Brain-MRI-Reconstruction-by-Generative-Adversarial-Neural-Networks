@@ -18,9 +18,6 @@ from torch.utils.data import DataLoader
 
 def train_nets(gen_net, gen_optimizer, gen_scheduler,dis_net,dis_optimizer, args):
 
-    # if args.dataset == 'Aspect':
-    #     train_dataset = AspectDataset(args.train_dir, args)
-    #     val_dataset = AspectDataset(args.val_dir, args, validtion_flag=True)
 
     if args.dataset == 'IXI':
         train_dataset = IXIdataset(args.train_dir, args)
@@ -30,7 +27,6 @@ def train_nets(gen_net, gen_optimizer, gen_scheduler,dis_net,dis_optimizer, args
     val_loader = DataLoader(val_dataset, batch_size=args.batchsize, shuffle=True, num_workers=4,
                             pin_memory=True, drop_last=True) #Shuffle is true for diffrent images on tensorboard
     
-    #TODO: better name for checkpoints dir
     writer = SummaryWriter(log_dir=args.dir_checkpoint + '/runs', comment=f'LR_{args.lr}_BS_{args.batchsize}')
 
     logging.info(f'''Starting training:
@@ -93,12 +89,12 @@ def train_nets(gen_net, gen_optimizer, gen_scheduler,dis_net,dis_optimizer, args
                 fake_D_ex = rec_img
                 D_real = dis_net(real_D_ex)
                 D_fake = dis_net(fake_D_ex)
-                FullLoss, ImL2, ImL1, KspaceL2, advLoss = criterion.calc_gen_loss(rec_img, rec_Kspace, target_img, target_Kspace,D_fake)
+                FullLoss, ImL2, ImL1, KspaceL2, advLoss = criterion.calc_gen_loss(rec_img, rec_Kspace, target_img, target_Kspace, D_fake)
 
                 #Stop backprop to G by detaching
 
                 D_fake_detach = dis_net(fake_D_ex.detach())
-                D_real_loss,D_fake_loss,DLoss = criterion.calc_disc_loss(D_real,D_fake_detach)
+                D_real_loss,D_fake_loss,DLoss = criterion.calc_disc_loss(D_real, D_fake_detach)
 
 
                 epoch_gen_loss += FullLoss.item()

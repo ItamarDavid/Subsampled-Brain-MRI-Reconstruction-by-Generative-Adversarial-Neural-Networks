@@ -6,6 +6,8 @@ from .unet_parts import *
 
 class UNet(nn.Module):
     def __init__(self, n_channels_in, n_channels_out, bilinear=True):
+        """U-Net  #https://github.com/milesial/Pytorch-UNet
+        """
         super(UNet, self).__init__()
         self.n_channels_in = n_channels_in
         self.n_channels_out = n_channels_out
