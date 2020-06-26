@@ -1,11 +1,13 @@
 """ Full assembly of the parts to form the complete network """
 
 import torch.nn.functional as F
-import scipy
+import pickle
 from .unet_parts import *
 
 class UNet(nn.Module):
     def __init__(self, n_channels_in, n_channels_out, bilinear=True):
+        """U-Net  #https://github.com/milesial/Pytorch-UNet
+        """
         super(UNet, self).__init__()
         self.n_channels_in = n_channels_in
         self.n_channels_out = n_channels_out
@@ -46,9 +48,9 @@ class WNet(nn.Module):
         self.masked_kspace = masked_kspace
 
         mask_path = args.mask_path
-        mat = scipy.io.loadmat(mask_path)
-        #TODO: fix hard cooded mask reader
-        self.mask = torch.tensor(mat['mask_2'], device=self.args.device)
+        with open(mask_path, 'rb') as pickle_file:
+            masks = pickle.load(pickle_file)
+        self.mask = torch.tensor(masks['mask1'] == 1, device=self.args.device)
         self.maskNot = self.mask == 0
 
         self.kspace_Unet = UNet(n_channels_in=args.NumInputSlices*2, n_channels_out=2, bilinear=self.bilinear)
@@ -83,7 +85,7 @@ class WNet(nn.Module):
             F_rec_Kspace = self.fftshift(self.inverseFT(rec_Kspace))
         refine_Img = self.img_UNet(F_rec_Kspace)
         rec_img = torch.tanh(refine_Img + F_rec_Kspace)
-        rec_img = torch.clamp(rec_img,0,1)
+        rec_img = torch.clamp(rec_img, 0, 1)
         # if self.train():
         return rec_img, rec_Kspace, F_rec_Kspace
 

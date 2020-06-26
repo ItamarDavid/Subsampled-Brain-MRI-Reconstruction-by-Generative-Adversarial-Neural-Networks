@@ -6,10 +6,8 @@ import torch
 from torch.utils.data import Dataset
 import logging
 from PIL import Image
-import scipy.io
-import random
-import os
 import h5py
+import pickle
 
 
 class BasicDataset(Dataset):
@@ -328,7 +326,7 @@ class BasicDataset(Dataset):
 #                 'full_img': torch.from_numpy(full_imgs)}
 
 
-class IXIataset(Dataset):
+class IXIdataset(Dataset):
     def __init__(self, data_dir, args, validtion_flag=False):
         self.args = args
         self.data_dir = data_dir
@@ -361,12 +359,11 @@ class IXIataset(Dataset):
         else:
             logging.info(f'Creating training dataset with {len(self.ids)} examples')
 
-        #TODO: fix the hard cooded mask reader
         mask_path = args.mask_path
-        mat = scipy.io.loadmat(mask_path)
-
-        self.masks = np.dstack((mat['mask_1'], mat['mask_2'], mat['mask_3']))
-        self.maskedNot = 1-mat['mask_2']
+        with open(mask_path, 'rb') as pickle_file:
+            masks_dictionary = pickle.load(pickle_file)
+        self.masks = np.dstack((masks_dictionary['mask0'], masks_dictionary['mask1'], masks_dictionary['mask2']))
+        self.maskedNot = 1-masks_dictionary['mask1']
 
         #random noise:
         self.minmax_noise_val = [-0.01, 0.01]

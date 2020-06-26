@@ -3,26 +3,21 @@ import logging
 import os
 import sys
 
-import numpy as np
 import torch
-import torch.nn as nn
 from torch import optim
 from tqdm import tqdm
 
 from eval import eval_net
 from Networks import WNet,NLayerDiscriminator
 from torch.utils.tensorboard import SummaryWriter
-from utils.dataset import IXIdataset #, AspectDataset
+from utils.dataset import IXIdataset
 from loss import netLoss,set_grad
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 
 
 
 def train_nets(gen_net, gen_optimizer, gen_scheduler,dis_net,dis_optimizer, args):
 
-    # if args.dataset == 'Aspect':
-    #     train_dataset = AspectDataset(args.train_dir, args)
-    #     val_dataset = AspectDataset(args.val_dir, args, validtion_flag=True)
 
     if args.dataset == 'IXI':
         train_dataset = IXIdataset(args.train_dir, args)
@@ -32,8 +27,7 @@ def train_nets(gen_net, gen_optimizer, gen_scheduler,dis_net,dis_optimizer, args
     val_loader = DataLoader(val_dataset, batch_size=args.batchsize, shuffle=True, num_workers=4,
                             pin_memory=True, drop_last=True) #Shuffle is true for diffrent images on tensorboard
     
-    #TODO: better name for checkpoints dir
-    writer = SummaryWriter(log_dir=dir_checkpoint + '/runs', comment=f'LR_{args.lr}_BS_{args.batchsize}')
+    writer = SummaryWriter(log_dir=args.dir_checkpoint + '/runs', comment=f'LR_{args.lr}_BS_{args.batchsize}')
 
     logging.info(f'''Starting training:
         Epochs:          {args.epochs_n}
@@ -95,12 +89,12 @@ def train_nets(gen_net, gen_optimizer, gen_scheduler,dis_net,dis_optimizer, args
                 fake_D_ex = rec_img
                 D_real = dis_net(real_D_ex)
                 D_fake = dis_net(fake_D_ex)
-                FullLoss, ImL2, ImL1, KspaceL2, advLoss = criterion.calc_gen_loss(rec_img, rec_Kspace, target_img, target_Kspace,D_fake)
+                FullLoss, ImL2, ImL1, KspaceL2, advLoss = criterion.calc_gen_loss(rec_img, rec_Kspace, target_img, target_Kspace, D_fake)
 
                 #Stop backprop to G by detaching
 
                 D_fake_detach = dis_net(fake_D_ex.detach())
-                D_real_loss,D_fake_loss,DLoss = criterion.calc_disc_loss(D_real,D_fake_detach)
+                D_real_loss,D_fake_loss,DLoss = criterion.calc_disc_loss(D_real, D_fake_detach)
 
 
                 epoch_gen_loss += FullLoss.item()
@@ -193,7 +187,9 @@ def get_args():
                         help='Batch size', dest='batchsize')
 
     args = parser.parse_args()
-    args.dir_checkpoint = '/HOME/published_code/run_0/'
+    # args.dir_checkpoint = '/HOME/published_code/run_0/'
+    args.dir_checkpoint = '/media/rrtammyfs/Users/Itamar/reconstructed/try'
+
 
     args.load_gen = False#r"/HOME/published_code/runs/G_CP_epoch3.pth" #False or path
     args.load_dis = False#r"/HOME/published_code/runs/D_CP_epoch3.pth"
@@ -207,11 +203,14 @@ def get_args():
     args.dataset = 'IXI'
     if args.dataset == 'IXI':
         #IXI:
-        args.train_dir = '/HOME/published_code/data/train/'
-        args.val_dir = '/HOME/published_code/data/val/'
+        # args.train_dir = '/HOME/published_code/data/train/'
+        # args.val_dir = '/HOME/published_code/data/val/'
+        args.train_dir = '/HOME/reconstructed/data/IXIhdf5/train/'
+        args.val_dir = '/HOME/reconstructed/data/IXIhdf5/val/'
 
 
-    args.mask_path = '/HOME/published_code/Subsampled-Brain-MRI-Reconstruction-by-Generative-Adversarial-Neural-Networks/MATLAB/masks/mask_30_256.mat'
+    args.sampling_percentage = 30 #20%, 30% or 50%
+    args.mask_path = './Masks/mask_{}_256.pickle'.format(args.sampling_percentage)
     args.NumInputSlices = 3
     args.img_size = 256
     args.lr = 0.001
@@ -229,7 +228,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     args = get_args()
     
-    gpu_id = '1'
+    gpu_id = '2'
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
     device = 'cuda'
     
@@ -244,7 +243,7 @@ if __name__ == '__main__':
     gen_scheduler = optim.lr_scheduler.ReduceLROnPlateau(gen_optimizer, 'min', patience=5)
 
     #Discriminator network
-    dis_net = NLayerDiscriminator(1,crop_center=(128,128))
+    dis_net = NLayerDiscriminator(1, crop_center=(128,128))
     dis_optimizer = torch.optim.Adam(dis_net.parameters(), lr=2*args.lr, betas=(0.5, 0.999))
 
 
