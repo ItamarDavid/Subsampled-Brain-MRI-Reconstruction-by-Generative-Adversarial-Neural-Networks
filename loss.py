@@ -1,20 +1,20 @@
 import torch
 from torch.autograd import Function
 import torch.nn as nn
-import scipy
-
+import pickle
 
 
 class netLoss():
 
-    def __init__(self, args, masked_kspace=True):
+    def __init__(self, args, masked_kspace_flag=True):
         self.args = args
 
         mask_path = args.mask_path
-        mat = scipy.io.loadmat(mask_path)
+        with open(mask_path, 'rb') as pickle_file:
+            masks = pickle.load(pickle_file)
 
-        self.masked_kspace = masked_kspace
-        self.mask = torch.tensor(mat['mask_2'], device=self.args.device)
+        self.masked_kspace_flag = masked_kspace_flag
+        self.mask = torch.tensor(masks['mask1']==1, device=self.args.device)
         self.maskNot = self.mask == 0
 
 
@@ -27,7 +27,7 @@ class netLoss():
         self.ImL1Loss = nn.SmoothL1Loss()
 
         self.AdverLoss = nn.BCEWithLogitsLoss()
-        if self.masked_kspace:
+        if self.masked_kspace_flag:
             self.KspaceL2Loss = nn.MSELoss(reduction='sum')
         else:
             self.KspaceL2Loss = nn.MSELoss()
@@ -36,7 +36,7 @@ class netLoss():
         return self.ImL1Loss(pred_Im, tar_Im),self.ImL2Loss(pred_Im, tar_Im)
 
     def k_space_loss(self,pred_K,tar_K):
-        if self.masked_kspace:
+        if self.masked_kspace_flag:
             return self.KspaceL2Loss(pred_K, tar_K)/(torch.sum(self.maskNot)*tar_K.max())
         else:
             return self.KspaceL2Loss(pred_K, tar_K)
