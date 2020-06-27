@@ -47,7 +47,7 @@ def train_nets(args):
                             pin_memory=True, drop_last=True) #Shuffle is true for diffrent images on tensorboard
 
     # Init tensorboard writer
-    if args.tb_write_losses is True or args.tb_write_images is True:
+    if args.tb_write_losses or args.tb_write_images :
         writer = SummaryWriter(log_dir=args.output_dir + '/tensorboard')
 
     # Init loss object
@@ -67,7 +67,8 @@ def train_nets(args):
             logging.info(f'Models, optimizer and scheduler loaded from {args.load_cp}')
         else:
             logging.info(f'Models only load from {args.load_cp}')
-
+    else:
+        start_epoch = 0
     #Start training
 
     logging.info(f'''Starting training:
@@ -77,7 +78,7 @@ def train_nets(args):
         Device:          {args.device}
     ''')
 
-    start_epoch = 0
+
     try: #Catch keyboard interrupt and save state
         for epoch in range(start_epoch, args.epochs_n):
             G_model.train()
