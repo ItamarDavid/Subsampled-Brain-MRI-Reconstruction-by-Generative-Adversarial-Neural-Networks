@@ -46,12 +46,12 @@ def preprocess(kspace_cplx, args):
 
 def predict(net, input0, input1, device, args):
     net.eval()
-    net_input0 = np.zeros((2*args.NumInputSlices, args.img_size, args.img_size))
-    net_input1 = np.zeros((2*args.NumInputSlices, args.img_size, args.img_size))
+    net_input0 = np.zeros((2*args.num_input_slices, args.img_size, args.img_size))
+    net_input1 = np.zeros((2*args.num_input_slices, args.img_size, args.img_size))
 
     noisy_img0 = np.zeros((args.img_size, args.img_size))
     noisy_img1 = np.zeros((args.img_size, args.img_size))
-    for slice in range(args.NumInputSlices):
+    for slice in range(args.num_input_slices):
         kspace_0_ = input0[:, :, slice]
         kspace_1_ = input1[:, :, slice]
 
@@ -124,7 +124,7 @@ def get_args():
     args.save_path = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_aspectTransfer_flips/test_results/'
 
 
-    args.NumInputSlices = 3
+    args.num_input_slices = 3
     args.masked_kspace = False
     # args.model = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_aspectTransfer_2/CP_epoch37.pth'
     args.model = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_aspectTransfer_flips/CP_epoch30.pth'
@@ -132,27 +132,6 @@ def get_args():
     args.input_path = '/HOME/reconstructed/data/aspect/hdf5_norm/test/'
     # args.input_path = '/HOME/reconstructed/data/aspect/hdf5_norm/val/'
     return args
-
-
-# def get_output_filenames(args):
-#     in_files = args.input
-#     out_files = []
-#
-#     if not args.output:
-#         for f in in_files:
-#             pathsplit = os.path.splitext(f)
-#             out_files.append("{}_OUT{}".format(pathsplit[0], pathsplit[1]))
-#     elif len(in_files) != len(args.output):
-#         logging.error("Input files and output files are not of the same length")
-#         raise SystemExit()
-#     else:
-#         out_files = args.output
-#
-#     return out_files
-
-
-# def mask_to_image(mask):
-#     return Image.fromarray((mask * 255).astype(np.uint8))
 
 
 if __name__ == "__main__":
@@ -200,7 +179,7 @@ if __name__ == "__main__":
 
         # img = Image.open(fn)
         for slice in range( kspace_1.shape[2]):
-            add = int(args.NumInputSlices / 2)
+            add = int(args.num_input_slices / 2)
             if slice == 0:
                 K0 = np.dstack((kspace_0[:, :, 0], kspace_0[:, :, 0:2]))
                 K1 = np.dstack((kspace_1[:, :, 0], kspace_1[:, :, 0:2]))

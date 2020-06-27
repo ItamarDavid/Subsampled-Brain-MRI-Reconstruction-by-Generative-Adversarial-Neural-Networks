@@ -332,7 +332,7 @@ class IXIdataset(Dataset):
         self.data_dir = data_dir
         self.validtion_flag = validtion_flag
 
-        self.NumInputSlices = args.NumInputSlices
+        self.num_input_slices = args.num_input_slices
         self.img_size = args.img_size
 
         #make an image id's list
@@ -411,19 +411,19 @@ class IXIdataset(Dataset):
         full_file_path = self.data_dir + file_name + '.hdf5'
 
         with h5py.File(full_file_path, 'r') as f:
-            add = int(self.NumInputSlices / 2)
+            add = int(self.num_input_slices / 2)
             imgs = f['data'][:, :, slice_num-add:slice_num+add+1]
 
-        masked_Kspaces = np.zeros((self.NumInputSlices*2, self.img_size, self.img_size))
+        masked_Kspaces = np.zeros((self.num_input_slices*2, self.img_size, self.img_size))
         target_Kspace = np.zeros((2, self.img_size, self.img_size))
         target_img = np.zeros((1, self.img_size, self.img_size))
 
-        for sliceNum in range(self.NumInputSlices):
+        for sliceNum in range(self.num_input_slices):
             img = imgs[:, :, sliceNum]
             kspace = self.fft2(img)
             slice_masked_Kspace, slice_full_Kspace, slice_full_img = self.slice_preprocess(kspace, sliceNum)
             masked_Kspaces[sliceNum*2:sliceNum*2+2, :, :] = slice_masked_Kspace
-            if sliceNum == int(self.NumInputSlices/2):
+            if sliceNum == int(self.num_input_slices/2):
                 target_Kspace = slice_full_Kspace
                 target_img = slice_full_img
 

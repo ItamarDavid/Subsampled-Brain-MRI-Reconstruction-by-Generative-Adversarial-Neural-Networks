@@ -53,7 +53,7 @@ class WNet(nn.Module):
         self.mask = torch.tensor(masks['mask1'] == 1, device=self.args.device)
         self.maskNot = self.mask == 0
 
-        self.kspace_Unet = UNet(n_channels_in=args.NumInputSlices*2, n_channels_out=2, bilinear=self.bilinear)
+        self.kspace_Unet = UNet(n_channels_in=args.num_input_slices*2, n_channels_out=2, bilinear=self.bilinear)
         self.img_UNet = UNet(n_channels_in=1, n_channels_out=1, bilinear=self.bilinear)
 
     def fftshift(self, img):
@@ -79,13 +79,13 @@ class WNet(nn.Module):
         if self.masked_kspace:
             rec_Kspace = self.mask*Kspace[:, int(Kspace.shape[1]/2)-1:int(Kspace.shape[1]/2)+1, :, :] +\
                          self.maskNot*rec_all_Kspace
-            F_rec_Kspace = self.inverseFT(rec_Kspace)
+            rec_mid_img = self.inverseFT(rec_Kspace)
         else:
             rec_Kspace = rec_all_Kspace
-            F_rec_Kspace = self.fftshift(self.inverseFT(rec_Kspace))
-        refine_Img = self.img_UNet(F_rec_Kspace)
-        rec_img = torch.tanh(refine_Img + F_rec_Kspace)
+            rec_mid_img = self.fftshift(self.inverseFT(rec_Kspace))
+        refine_Img = self.img_UNet(rec_mid_img)
+        rec_img = torch.tanh(refine_Img + rec_mid_img)
         rec_img = torch.clamp(rec_img, 0, 1)
         # if self.train():
-        return rec_img, rec_Kspace, F_rec_Kspace
+        return rec_img, rec_Kspace, rec_mid_img
 

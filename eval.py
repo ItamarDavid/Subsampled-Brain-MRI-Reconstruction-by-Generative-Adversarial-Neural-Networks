@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from math import log10
 
 

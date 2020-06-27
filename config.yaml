@@ -1,0 +1,29 @@
+
+dataset: "IXI"
+train_data_dir: "/HOME/published_code/data/train/"
+val_data_dir: "/HOME/published_code/data/val/"
+output_dir: "/HOME/published_code/run_0/"
+sampling_percentage: 30
+num_input_slices: 3
+img_size: 256
+slice_range: [20,120]
+
+load_cp: 0
+resume_training: 0
+
+bilinear: 1
+
+crop_center: 128
+
+lr: 0.001
+epochs_n: 50
+train_num_workers: 16
+val_num_workers: 4
+batch_size: 24
+LossWeights: [1000, 1000, 5, 0.1 ] #Imspac L2, Imspace L1, Kspace L2, GAN_Loss
+
+tb_write_losses: 1
+tb_write_images: 1
+
+device: 'cuda'
+gpu_id: '1'

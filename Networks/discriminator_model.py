@@ -5,7 +5,7 @@ import scipy
 from torch import nn
 import functools
 
-class NLayerDiscriminator(nn.Module):
+class PatchGAN(nn.Module):
     def weights_init(self,m):
         classname = m.__class__.__name__
         if classname.find('Conv') != -1:
@@ -15,15 +15,18 @@ class NLayerDiscriminator(nn.Module):
             nn.init.zeros_(m.bias)
 
     def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d,crop_center = None,FC_bottleneck=False):
-        """Construct a PatchGAN discriminator #https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix
+        """Construct a PatchGAN discriminator  - #https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix
+        Modified to have double-convs, cropping, and a bottle-neck to use a vanilla dicriminator
         Parameters:
             input_nc (int)  -- the number of channels in input images
             ndf (int)       -- the number of filters in the last conv layer
             n_layers (int)  -- the number of conv layers in the discriminator
             norm_layer      -- normalization layer
+            crop_center      -- None ot the size of the center patch to be cropped
+            FC_bottleneck      -- If True use global average pooling and output a one-dimension prediction
         """
         self.crop_center = crop_center
-        super(NLayerDiscriminator, self).__init__()
+        super(PatchGAN, self).__init__()
         if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
@@ -69,7 +72,7 @@ class NLayerDiscriminator(nn.Module):
         """Standard forward."""
         if self.crop_center is not None:
             _,_,h,w = input.shape
-            x0 = (h-self.crop_center[0]) //2
-            y0 = (w-self.crop_center[1]) //2
-            input = input[:,:,x0:x0+self.crop_center[0],y0:y0+self.crop_center[1]]
+            x0 = (h-self.crop_center) //2
+            y0 = (w-self.crop_center) //2
+            input = input[:,:,x0:x0+self.crop_center,y0:y0+self.crop_center]
         return self.model(input)
