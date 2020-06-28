@@ -18,10 +18,10 @@ class netLoss():
         self.maskNot = self.mask == 0
 
 
-        self.ImL2_weights = args.LossWeights[0]
-        self.ImL1_weights = args.LossWeights[1]
-        self.KspaceL2_weights = args.LossWeights[2]
-        self.AdverLoss_weight = args.LossWeights[3]
+        self.ImL2_weights = args.loss_weights[0]
+        self.ImL1_weights = args.loss_weights[1]
+        self.KspaceL2_weights = args.loss_weights[2]
+        self.AdverLoss_weight = args.loss_weights[3]
 
         self.ImL2Loss = nn.MSELoss()
         self.ImL1Loss = nn.SmoothL1Loss()

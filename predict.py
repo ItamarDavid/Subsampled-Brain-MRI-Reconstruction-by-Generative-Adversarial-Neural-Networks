@@ -1,19 +1,17 @@
-import argparse
+import yaml
+from types import SimpleNamespace
 import logging
 import os
 
 import numpy as np
 import torch
-import torch.nn.functional as F
-from PIL import Image
-from torchvision import transforms
 import glob
 import h5py
+from pprint import pprint
 
 from Networks import WNet
 from utils.data_vis import plot_imgs
 from utils.data_save import save_data
-from utils.dataset import BasicDataset, AspectDataset_multi
 
 
 def crop_toshape(kspace_cplx, args):
@@ -93,76 +91,42 @@ def predict(net, input0, input1, device, args):
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Predict masks from input images',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    with open('config.yaml') as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+    args = SimpleNamespace(**data)
 
-    # parser.add_argument('--input', '-i', metavar='INPUT', nargs='+',
-    #                     help='filenames of input images', required=True)
-
-    parser.add_argument('--output', '-o', metavar='INPUT', nargs='+',
-                        help='Filenames of ouput images')
-    # parser.add_argument('--viz', '-v', action='store_true',
-    #                     help="Visualize the images as they are processed",
-    #                     default=False)
-    parser.add_argument('--no-save', '-n', action='store_true',
-                        help="Do not save the output masks",
-                        default=False)
-    parser.add_argument('--mask-threshold', '-t', type=float,
-                        help="Minimum probability value to consider a mask pixel white",
-                        default=0.5)
-    parser.add_argument('--scale', '-s', type=float,
-                        help="Scale factor for the input images",
-                        default=0.5)
-
-    args = parser.parse_args()
-    args.bilinear = True
-    args.mask_path = '/HOME/reconstructed/V1/MATLAB/mask_100_140.mat'
-    args.img_size = 140
-    args.viz = True
-    args.save = True
-    # args.save_path = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_aspectTransfer_2/val_results/'
-    args.save_path = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_aspectTransfer_flips/test_results/'
+    args.masked_kspace = True
+    args.mask_path = './Masks/mask_{}_{}.pickle'.format(args.sampling_percentage, args.img_size)
+    pprint(data)
 
 
-    args.num_input_slices = 3
-    args.masked_kspace = False
-    # args.model = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_aspectTransfer_2/CP_epoch37.pth'
-    args.model = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_aspectTransfer_flips/CP_epoch30.pth'
-
-    args.input_path = '/HOME/reconstructed/data/aspect/hdf5_norm/test/'
-    # args.input_path = '/HOME/reconstructed/data/aspect/hdf5_norm/val/'
     return args
 
 
 if __name__ == "__main__":
     args = get_args()
-    # out_files = get_output_filenames(args)
 
-    gpu_id = '1'
-    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    args.device = device
-    logging.info(f'Using device {device}')
+    # Set device and GPU (currently only single GPU training is supported
+    logging.info(f'Using device {args.device}')
+    if args.device == 'cuda':
+        logging.info(f'Using GPU {args.gpu_id}')
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
 
-    net = WNet(args, masked_kspace=args.masked_kspace)
-
-
-    # net = UNet(n_channels=3, n_classes=1)
-
+    # Load network
     logging.info("Loading model {}".format(args.model))
+    net = WNet(args, masked_kspace=args.masked_kspace)
+    net.to(device=args.device)
 
-
-    net.to(device=device)
-
-    checkpoint = torch.load(args.model, map_location=device)
-    net.load_state_dict(checkpoint['model_state_dict'])
+    checkpoint = torch.load(args.model, map_location=args.device)
+    net.load_state_dict(checkpoint['G_model_state_dict'])
 
     logging.info("Model loaded !")
 
-    in_files = glob.glob(args.input_path + '*.hdf5')
+
+    test_files = glob.glob(os.path.join(args.predict_data_dir, '*.hdf5'))
 
 
-    for i, fn in enumerate(in_files):
+    for i, fn in enumerate(test_files):
         logging.info("\nPredicting image {} ...".format(fn))
 
         with h5py.File(fn, 'r') as f:
@@ -195,15 +159,15 @@ if __name__ == "__main__":
 
             pred_Im0[:, :, slice], pred_K0[:, :, slice], pred_Im1[:, :, slice], pred_K1[:, :, slice], \
             noisy0[:, :, slice], noisy1[:, :, slice] =\
-                predict(net=net, input0=K0,  input1=K1, device=device, args=args)
+                predict(net=net, input0=K0,  input1=K1, device=args.device, args=args)
 
-        if args.save:
+        if args.save_prediction:
             os.makedirs(args.save_path, exist_ok=True)
             out_file_name = args.save_path + os.path.split(fn)[1]
             save_data(pred_Im0, pred_K0, pred_Im1, pred_K1, noisy0, noisy1, out_file_name)
 
             logging.info("Mask saved to {}".format(out_file_name))
 
-        if args.viz:
+        if args.visualize_images:
             logging.info("Visualizing results for image {}, close to continue ...".format(fn))
             plot_imgs(pred_Im0, pred_Im1, noisy0, noisy1)

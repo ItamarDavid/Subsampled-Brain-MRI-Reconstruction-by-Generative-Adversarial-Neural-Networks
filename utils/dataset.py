@@ -1,5 +1,5 @@
 from os.path import splitext
-from os import listdir
+from os import listdir,path
 import numpy as np
 from glob import glob
 import torch
@@ -342,7 +342,7 @@ class IXIdataset(Dataset):
         self.ids = list()
         for file_name in self.file_names:
             try:
-                full_file_path = self.data_dir + file_name + '.hdf5'
+                full_file_path = path.join(self.data_dir,file_name+'.hdf5')
                 with h5py.File(full_file_path, 'r') as f:
                     numOfSlice = f['data'].shape[2]
 
@@ -408,7 +408,7 @@ class IXIdataset(Dataset):
     def __getitem__(self, i):
         file_name, slice_num = self.ids[i]
 
-        full_file_path = self.data_dir + file_name + '.hdf5'
+        full_file_path = path.join(self.data_dir,file_name + '.hdf5')
 
         with h5py.File(full_file_path, 'r') as f:
             add = int(self.num_input_slices / 2)

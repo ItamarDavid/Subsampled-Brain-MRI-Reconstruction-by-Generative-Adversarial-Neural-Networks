@@ -1,13 +1,13 @@
-import argparse
 import yaml
 from types import SimpleNamespace
 import logging
 import os
 import sys
+import shutil
 
 import torch
-from torch import optim
 from tqdm import tqdm
+from pprint import pprint
 
 from eval import eval_net
 from Networks import WNet,PatchGAN
@@ -18,13 +18,13 @@ from torch.utils.data import DataLoader
 
 
 
-def train_nets(args):
+def train(args):
     # Init Generator network
     G_model = WNet(args)
     logging.info(f'Network:\n'
                  f'\t{"Bilinear" if G_model.bilinear else "Transposed conv"} upscaling')
     G_optimizer = torch.optim.Adam(G_model.parameters(), lr=args.lr, betas=(0.5, 0.999))
-    G_scheduler = optim.lr_scheduler.ReduceLROnPlateau(G_optimizer, 'min', patience=5)
+    G_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(G_optimizer, 'min', patience=5)
     G_model.to(device=args.device)
     # Init Discriminator network
     D_model = PatchGAN(1, crop_center=args.crop_center)
@@ -37,10 +37,6 @@ def train_nets(args):
         val_dataset = IXIdataset(args.val_data_dir, args, validtion_flag=True)
     else:
         logging.error("Data type not supported")
-        try:
-            sys.exit(0)
-        except SystemExit:
-            os._exit(0)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.train_num_workers, pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.val_num_workers,
@@ -175,11 +171,6 @@ def train_nets(args):
             logging.info(f'Checkpoint {epoch + 1} saved !')
 
     except KeyboardInterrupt:
-        try:
-            os.mkdir(args.output_dir)
-            logging.info('Created checkpoint directory')
-        except OSError:
-            pass
         torch.save({
             'epoch': epoch,
             'G_model_state_dict': G_model.state_dict(),
@@ -199,12 +190,10 @@ def train_nets(args):
 def get_args():
     with open('config.yaml') as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
-        print(data)
     args = SimpleNamespace(**data)
 
-    args.mask_path = './Masks/mask_{}_256.pickle'.format(args.sampling_percentage)
-
-
+    args.mask_path = './Masks/mask_{}_{}.pickle'.format(args.sampling_percentage,args.img_size)
+    pprint(data)
     return args
 
 
@@ -212,19 +201,23 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     args = get_args()
 
-    #Create output dir
+    # Create output dir
     try:
         os.mkdir(args.output_dir)
         logging.info('Created checkpoint directory')
     except OSError:
         pass
 
+    # Copy configuration file to output directory
+    shutil.copyfile('config.yaml',os.path.join(args.output_dir,'config.yaml'))
+
+    # Set device and GPU (currently only single GPU training is supported
     logging.info(f'Using device {args.device}')
     if args.device == 'cuda':
         logging.info(f'Using GPU {args.gpu_id}')
         os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
 
 
-    train_nets(args)
+    train(args)
 
 
