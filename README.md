@@ -1,6 +1,6 @@
 
 # Subsampled Brain MRI Reconstruction by Generative Adversarial Neural Networks : PyTorch Implementation
-![alt text](https://github.com/ItamarDavid/Subsampled-Brain-MRI-Reconstruction-by-Generative-Adversarial-Neural-Networks/tree/master/figures/architecture.jpg)
+![Architecture](https://raw.githubusercontent.com/ItamarDavid/Subsampled-Brain-MRI-Reconstruction-by-Generative-Adversarial-Neural-Networks/master/figures/architecture.jpg)
 This is a PyTorch implementation of ["Subsampled Brain MRI Reconstruction by Generative Adversarial Neural Networks"](https://authors.elsevier.com/a/1bIAU4rfPm3jGs). 
 Since the original code was implemented in TensorFlow<1.0 and Python 2.7 we reimplemented the code in PyTorch.
 
