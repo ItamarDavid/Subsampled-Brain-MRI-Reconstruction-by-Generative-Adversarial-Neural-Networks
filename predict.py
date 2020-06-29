@@ -4,16 +4,14 @@ import os
 
 import numpy as np
 import torch
-import torch.nn.functional as F
-from PIL import Image
-from torchvision import transforms
+
 import glob
 import h5py
+import pickle
 
-from Networks import WNet
+from Networks.generator_model import WNet
 from utils.data_vis import plot_imgs
 from utils.data_save import save_data
-from utils.dataset import BasicDataset, AspectDataset_multi
 
 
 def crop_toshape(kspace_cplx, args):
@@ -27,83 +25,40 @@ def crop_toshape(kspace_cplx, args):
     return kspace_cplx
 
 
+def fft2(img):
+    return np.fft.fftshift(np.fft.fft2(img))
+
 def ifft2(kspace_cplx):
-    return np.absolute(np.fft.fftshift(np.fft.ifft2(kspace_cplx)))[None, :, :]
+    return np.absolute(np.fft.ifft2(kspace_cplx))[None, :, :]
 
 
-def preprocess(kspace_cplx, args):
+def slice_preprocess(kspace_cplx, slice_num, masks, maskedNot, args):
+    # crop to fix size
     kspace_cplx = crop_toshape(kspace_cplx, args)
+    # split to real and imaginary channels
+    kspace = np.zeros((args.img_size, args.img_size, 2))
+    kspace[:, :, 0] = np.real(kspace_cplx).astype(np.float32)
+    kspace[:, :, 1] = np.imag(kspace_cplx).astype(np.float32)
+    # target image:
+    image = ifft2(kspace_cplx)
 
-    kspace_in = np.zeros((2, args.img_size, args.img_size))
-    kspace_in[0, :, :] = np.real(kspace_cplx).astype(np.float32)
-    kspace_in[1, :, :] = np.imag(kspace_cplx).astype(np.float32)
+    # HWC to CHW
+    kspace = kspace.transpose((2, 0, 1))
+    masked_Kspace = kspace * masks[:, :, slice_num]
+    masked_Kspace += np.random.uniform(low=args.minmax_noise_val[0], high=args.minmax_noise_val[1],
+                                       size=masked_Kspace.shape) * maskedNot
 
-
-    img= ifft2(kspace_cplx)
-
-
-    return kspace_in, img
-
-def predict(net, input0, input1, device, args):
-    net.eval()
-    net_input0 = np.zeros((2*args.NumInputSlices, args.img_size, args.img_size))
-    net_input1 = np.zeros((2*args.NumInputSlices, args.img_size, args.img_size))
-
-    noisy_img0 = np.zeros((args.img_size, args.img_size))
-    noisy_img1 = np.zeros((args.img_size, args.img_size))
-    for slice in range(args.NumInputSlices):
-        kspace_0_ = input0[:, :, slice]
-        kspace_1_ = input1[:, :, slice]
-
-        kspace_0_, img_0 = preprocess(kspace_0_, args)
-        kspace_1_, img_1 = preprocess(kspace_1_, args)
-
-
-        net_input0[slice * 2:slice * 2 + 2, :, :] = kspace_0_
-        net_input1[slice * 2:slice * 2 + 2, :, :] = kspace_1_
-
-        if slice ==1:
-            noisy_img0 = img_0
-            noisy_img1 = img_1
-
-
-    net_input0 = torch.from_numpy(net_input0).unsqueeze(0)
-    net_input1 = torch.from_numpy(net_input1).unsqueeze(0)
-
-
-    net_input0 = net_input0.to(device=device, dtype=torch.float32)
-    net_input1 = net_input1.to(device=device, dtype=torch.float32)
-
-
-    with torch.no_grad():
-
-        pred_img0, pred_kspace0, F_pred_kspace0 = net(net_input0)
-        pred_img1, pred_kspace1, F_pred_kspace1 = net(net_input1)
-
-    pred_img0 = pred_img0.data.cpu().numpy()
-    F_pred_kspace0 = F_pred_kspace0.data.cpu().numpy()
-
-    pred_img1 = pred_img1.data.cpu().numpy()
-    F_pred_kspace1 = F_pred_kspace1.data.cpu().numpy()
-
-
-
-
-    return pred_img0, F_pred_kspace0, noisy_img0, pred_img1, F_pred_kspace1, noisy_img1
+    return masked_Kspace, kspace, image
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Predict masks from input images',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    # parser.add_argument('--input', '-i', metavar='INPUT', nargs='+',
-    #                     help='filenames of input images', required=True)
 
     parser.add_argument('--output', '-o', metavar='INPUT', nargs='+',
                         help='Filenames of ouput images')
-    # parser.add_argument('--viz', '-v', action='store_true',
-    #                     help="Visualize the images as they are processed",
-    #                     default=False)
+
     parser.add_argument('--no-save', '-n', action='store_true',
                         help="Do not save the output masks",
                         default=False)
@@ -116,115 +71,116 @@ def get_args():
 
     args = parser.parse_args()
     args.bilinear = True
-    args.mask_path = '/HOME/reconstructed/V1/MATLAB/mask_100_140.mat'
-    args.img_size = 140
+    args.mask_path = './Masks/mask_20_256.pickle'
+    args.img_size = 256
     args.viz = True
-    args.save = True
-    # args.save_path = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_aspectTransfer_2/val_results/'
-    args.save_path = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_aspectTransfer_flips/test_results/'
+    args.save = False
+    args.save_path = ''
 
 
     args.NumInputSlices = 3
-    args.masked_kspace = False
-    # args.model = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_aspectTransfer_2/CP_epoch37.pth'
-    args.model = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_aspectTransfer_flips/CP_epoch30.pth'
+    args.minmax_noise_val = [-0.01, 0.01]
+    args.masked_kspace = True
+    args.model = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_multi/CP_epoch57.pth'
 
-    args.input_path = '/HOME/reconstructed/data/aspect/hdf5_norm/test/'
-    # args.input_path = '/HOME/reconstructed/data/aspect/hdf5_norm/val/'
+    args.input_path = '/HOME/reconstructed/data/IXIhdf5/test/'
     return args
-
-
-# def get_output_filenames(args):
-#     in_files = args.input
-#     out_files = []
-#
-#     if not args.output:
-#         for f in in_files:
-#             pathsplit = os.path.splitext(f)
-#             out_files.append("{}_OUT{}".format(pathsplit[0], pathsplit[1]))
-#     elif len(in_files) != len(args.output):
-#         logging.error("Input files and output files are not of the same length")
-#         raise SystemExit()
-#     else:
-#         out_files = args.output
-#
-#     return out_files
-
-
-# def mask_to_image(mask):
-#     return Image.fromarray((mask * 255).astype(np.uint8))
 
 
 if __name__ == "__main__":
     args = get_args()
-    # out_files = get_output_filenames(args)
-
-    gpu_id = '1'
+    gpu_id = '2'
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     args.device = device
     logging.info(f'Using device {device}')
 
-    net = WNet(args, masked_kspace=args.masked_kspace)
-
-
-    # net = UNet(n_channels=3, n_classes=1)
+    gen_net = WNet(args, masked_kspace=args.masked_kspace)
 
     logging.info("Loading model {}".format(args.model))
 
 
-    net.to(device=device)
+    gen_net.to(device=device)
 
     checkpoint = torch.load(args.model, map_location=device)
-    net.load_state_dict(checkpoint['model_state_dict'])
+    gen_net.load_state_dict(checkpoint['model_state_dict'])
+
+    gen_net.eval()
 
     logging.info("Model loaded !")
 
     in_files = glob.glob(args.input_path + '*.hdf5')
 
+    mask_path = args.mask_path
+    with open(mask_path, 'rb') as pickle_file:
+        masks_dictionary = pickle.load(pickle_file)
+    masks = np.dstack((masks_dictionary['mask0'], masks_dictionary['mask1'], masks_dictionary['mask2']))
+    maskNot = 1 - masks_dictionary['mask1']
 
-    for i, fn in enumerate(in_files):
-        logging.info("\nPredicting image {} ...".format(fn))
+    for i, infile in enumerate(in_files):
+        logging.info("\nPredicting image {} ...".format(infile))
 
-        with h5py.File(fn, 'r') as f:
-            kspace_0 = f['kspace_0'][:]
-            kspace_1 = f['kspace_1'][:]
-        pred_Im0 = np.zeros((args.img_size, args.img_size, kspace_0.shape[2]), dtype=np.float32)
-        pred_K0 = np.zeros_like(pred_Im0)
-        pred_Im1 = np.zeros_like(pred_Im0)
-        pred_K1 = np.zeros_like(pred_Im0)
+        with h5py.File(infile, 'r') as f:
+            img_shape = f['data'].shape
+            fully_sampled_img = f['data'][:]
 
-        noisy0 = np.zeros_like(pred_Im0)
-        noisy1 = np.zeros_like(pred_Im0)
+        #preprocess data:
+        rec_imgs = np.zeros(img_shape)
+        rec_Kspaces = np.zeros(img_shape, dtype=np.csingle) #comples
+        F_rec_Kspaces = np.zeros(img_shape)
+        ZF_img = np.zeros(img_shape)
 
-
-        # img = Image.open(fn)
-        for slice in range( kspace_1.shape[2]):
+        for slice_num in range(img_shape[2]):
             add = int(args.NumInputSlices / 2)
-            if slice == 0:
-                K0 = np.dstack((kspace_0[:, :, 0], kspace_0[:, :, 0:2]))
-                K1 = np.dstack((kspace_1[:, :, 0], kspace_1[:, :, 0:2]))
+            with h5py.File(infile, 'r') as f:
+                if slice_num == 0:
+                    imgs = np.dstack((f['data'][:, :, 0], f['data'][:, :, 0], f['data'][:, :, 1]))
+                elif slice_num == img_shape[2]-1:
+                    imgs = np.dstack((f['data'][:, :, slice_num-1], f['data'][:, :, slice_num], f['data'][:, :, slice_num]))
+                else:
+                    imgs = np.dstack((f['data'][:, :, slice_num-1], f['data'][:, :, slice_num], f['data'][:, :, slice_num + 1]))
 
-            elif slice == kspace_1.shape[2]-1:
-                K0 = np.dstack((kspace_0[:, :, (kspace_1.shape[2] - 3):(kspace_1.shape[2]-1)], kspace_0[:, :, kspace_1.shape[2]-1]))
-                K1 = np.dstack((kspace_1[:, :, (kspace_1.shape[2] - 3):(kspace_1.shape[2]-1)], kspace_1[:, :, kspace_1.shape[2]-1]))
+            masked_Kspaces_np = np.zeros((args.NumInputSlices * 2, args.img_size, args.img_size))
+            target_Kspace = np.zeros((2, args.img_size, args.img_size))
+            target_img = np.zeros((1, args.img_size, args.img_size))
 
-            else:
-                K0 = kspace_0[:, :, slice-add:slice+add+1]
-                K1 = kspace_1[:, :, slice-add:slice+add+1]
+            for sliceNum in range(args.NumInputSlices):
+                img = imgs[:, :, sliceNum]
+                kspace = fft2(img)
+                slice_masked_Kspace, slice_full_Kspace, slice_full_img = slice_preprocess(kspace, sliceNum,
+                                                                                          masks, maskNot, args)
+                masked_Kspaces_np[sliceNum * 2:sliceNum * 2 + 2, :, :] = slice_masked_Kspace
+                if sliceNum == int(args.NumInputSlices / 2):
+                    target_Kspace = slice_full_Kspace
+                    target_img = slice_full_img
+
+            masked_Kspaces = np.expand_dims(masked_Kspaces_np, axis=0)
+
+            masked_Kspaces = torch.from_numpy(masked_Kspaces).to(device=args.device, dtype=torch.float32)
+
+            #predict:
+            rec_img, rec_Kspace, F_rec_Kspace = gen_net(masked_Kspaces)
+
+            rec_img = np.squeeze(rec_img.data.cpu().numpy())
+            rec_Kspace = np.squeeze(rec_Kspace.data.cpu().numpy())
+            rec_Kspace = (rec_Kspace[0, :, :] + 1j*rec_Kspace[1, :, :])
+
+            F_rec_Kspace = np.squeeze(F_rec_Kspace.data.cpu().numpy())
+
+            rec_imgs[:, :, slice_num] = rec_img
+            rec_Kspaces[:, :, slice_num] = rec_Kspace
+            F_rec_Kspaces[:, :, slice_num] = F_rec_Kspace
+            ZF_img[:, :, slice_num] = np.squeeze(ifft2((masked_Kspaces_np[2, :, :] + 1j*masked_Kspaces_np[3, :, :])))
 
 
-            pred_Im0[:, :, slice], pred_K0[:, :, slice], pred_Im1[:, :, slice], pred_K1[:, :, slice], \
-            noisy0[:, :, slice], noisy1[:, :, slice] =\
-                predict(net=net, input0=K0,  input1=K1, device=device, args=args)
 
         if args.save:
             os.makedirs(args.save_path, exist_ok=True)
-            out_file_name = args.save_path + os.path.split(fn)[1]
-            save_data(pred_Im0, pred_K0, pred_Im1, pred_K1, noisy0, noisy1, out_file_name)
+            out_file_name = args.save_path + os.path.split(infile)[1]
+            save_data(out_file_name. rec_imgs, F_rec_Kspaces, fully_sampled_img, ZF_img, rec_Kspaces)
 
-            logging.info("Mask saved to {}".format(out_file_name))
+            logging.info("reconstructions save to: {}".format(out_file_name))
 
         if args.viz:
-            logging.info("Visualizing results for image {}, close to continue ...".format(fn))
-            plot_imgs(pred_Im0, pred_Im1, noisy0, noisy1)
+            logging.info("Visualizing results for image {}, close to continue ...".format(infile))
+            plot_imgs(rec_imgs, F_rec_Kspaces, fully_sampled_img, ZF_img)
