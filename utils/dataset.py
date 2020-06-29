@@ -105,7 +105,7 @@ class IXIdataset(Dataset):
         self.maskedNot = 1-masks_dictionary['mask1']
 
         #random noise:
-        self.minmax_noise_val = [-0.01, 0.01]
+        self.minmax_noise_val = args.minmax_noise_val
 
     def __len__(self):
         return len(self.ids)

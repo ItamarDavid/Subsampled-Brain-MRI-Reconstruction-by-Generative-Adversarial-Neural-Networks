@@ -22,21 +22,22 @@ lr: 0.001                                                           # Learning r
 epochs_n: 50                                                        # Number of epochs
 batch_size: 32                                                      # Batch size. Reduce if out of memory.Batch size of 32 256X256 images needs ~13GB memory.
 loss_weights: [1000, 1000, 5, 0.1 ]                                 # Loss weighting [Imspac L2, Imspace L1, Kspace L2, GAN_Loss]. Losses are weighted to be roughly at the same scale.
+minmax_noise_val: [-0.01, 0.01]
 
                                   #Tensorboard
 tb_write_losses: 1                                                  # Write losses and scalars to Tensorboard.
 tb_write_images: 1                                                  # Write images to Tensorboard.
 
                                   #Runtime
-device: 'cpu'                                                      # For GPU training : 'cuda', for CPU training (not recomended!) 'cpu'.
+device: 'cuda'                                                      # For GPU training : 'cuda', for CPU training (not recomended!) 'cpu'.
 gpu_id: '2'                                                         # GPU ID to use.
 train_num_workers: 16                                               # Number of training dataset workers. Reduce if you are getting a shared memory error.
 val_num_workers: 4                                                  # Number of validation dataset workers. Reduce if you are getting a shared memory error.
 
                                  #Predict parameters
 save_prediction: 1                                                  # Save predicted images.
-save_path: '/HOME/published_code/predict_0'                                                   # Path to save predictions
+save_path: '/HOME/published_code/predict_0'                         # Path to save predictions
 visualize_images: 1                                                 # Visualize predicted images.
-model: '/HOME/published_code/run_0/CP_epoch37.pth'                                         # Model checkpoint to use for prediction.
-predict_data_dir: '/HOME/published_code/data/test'                                            # Test set files dir, should contain hdf5 preprocessed data.
+model: '/HOME/published_code/run_0/CP_epoch37.pth'                  # Model checkpoint to use for prediction.
+predict_data_dir: '/HOME/published_code/data/test'                  # Test set files dir, should contain hdf5 preprocessed data.
 
