@@ -1,28 +1,32 @@
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt
+from IPython.display import clear_output
 
 
-def plot_imgs(pred_Im0, pred_Im1, noisy0, noisy1):
-    slice = 10
-    fig, ax = plt.subplots(3, 2, figsize=(20, 30))
-    plt.subplots_adjust(hspace=0, wspace=0)
+def plot_imgs(rec_imgs, F_rec_Kspaces, fully_sampled_img, ZF_img):
+    plt.figure()
 
-    ax[0, 0].set_title('noisy0', fontsize=30)
-    ax[0, 0].imshow(noisy0[:, :, slice], cmap=plt.get_cmap('gray'))
+    slices = [20, 40, 50, 60, 70, 90]
 
-    ax[0, 1].set_title('pred_Im0', fontsize=30)
-    ax[0, 1].imshow(pred_Im0[:, :, slice], cmap=plt.get_cmap('gray'))
+    # for slice in range(rec_imgs.shape[2])
+    for slice in slices:
+        fig, ax = plt.subplots(1, 4, figsize=(40, 10))
+        plt.subplots_adjust(hspace=0, wspace=0)
+        ax[0].set_title('Final reconstruction', fontsize=30)
+        ax[0].imshow(rec_imgs[:, :, slice], vmin=0, vmax=1, cmap=plt.get_cmap('gray'))
 
-    ax[1, 0].set_title('noisy1', fontsize=30)
-    ax[1, 0].imshow(noisy1[:, :, slice], cmap=plt.get_cmap('gray'))
 
-    ax[1, 1].set_title('pred_Im1', fontsize=30)
-    ax[1, 1].imshow(pred_Im1[:, :, slice], cmap=plt.get_cmap('gray'))
+        ax[1].set_title('Kspace reconstruction', fontsize=30)
+        ax[1].imshow(F_rec_Kspaces[:, :, slice], vmin=0, vmax=1, cmap=plt.get_cmap('gray'))
 
-    ax[2, 0].set_title('mean noisy', fontsize=30)
-    ax[2, 0].imshow((noisy1[:, :, slice] + noisy0[:, :, slice])/2, cmap=plt.get_cmap('gray'))
 
-    ax[2, 1].set_title('mean pred', fontsize=30)
-    ax[2, 1].imshow((pred_Im1[:, :, slice] + pred_Im0[:, :, slice])/2, cmap=plt.get_cmap('gray'))
+        ax[2].set_title('ZF', fontsize=30)
+        ax[2].imshow(ZF_img[:, :, slice], vmin=0, vmax=1, cmap=plt.get_cmap('gray'))
 
-    plt.xticks([]), plt.yticks([])
-    plt.show()
+        ax[3].set_title('Fully sampled image', fontsize=30)
+        ax[3].imshow(fully_sampled_img[:, :, slice], vmin=0, vmax=1, cmap=plt.get_cmap('gray'))
+
+        plt.xticks([]), plt.yticks([])
+        plt.show()
+        clear_output(wait=True)
+
+
