@@ -70,7 +70,7 @@ class WNet(nn.Module):
         Kspace = Kspace.permute(0, 2, 3, 1)
         img_cmplx = torch.ifft(Kspace, 2)
         img = torch.sqrt(img_cmplx[:, :, :, 0]**2 + img_cmplx[:, :, :, 1]**2)
-        img = img[:,None, :, :]
+        img = img[:, None, :, :]
         return img
 
     def forward(self, Kspace):
