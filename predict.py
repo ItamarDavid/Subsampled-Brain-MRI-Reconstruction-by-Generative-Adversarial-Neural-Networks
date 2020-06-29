@@ -1,4 +1,5 @@
-import argparse
+import yaml
+from types import SimpleNamespace
 import logging
 import os
 
@@ -7,6 +8,7 @@ import torch
 
 import glob
 import h5py
+from pprint import pprint
 import pickle
 
 from Networks.generator_model import WNet
@@ -52,86 +54,60 @@ def slice_preprocess(kspace_cplx, slice_num, masks, maskedNot, args):
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Predict masks from input images',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    with open('config.yaml') as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+    args = SimpleNamespace(**data)
 
-
-    parser.add_argument('--output', '-o', metavar='INPUT', nargs='+',
-                        help='Filenames of ouput images')
-
-    parser.add_argument('--no-save', '-n', action='store_true',
-                        help="Do not save the output masks",
-                        default=False)
-    parser.add_argument('--mask-threshold', '-t', type=float,
-                        help="Minimum probability value to consider a mask pixel white",
-                        default=0.5)
-    parser.add_argument('--scale', '-s', type=float,
-                        help="Scale factor for the input images",
-                        default=0.5)
-
-    args = parser.parse_args()
-    args.bilinear = True
-    args.mask_path = './Masks/mask_20_256.pickle'
-    args.img_size = 256
-    args.viz = True
-    args.save = False
-    args.save_path = ''
-
-
-    args.NumInputSlices = 3
-    args.minmax_noise_val = [-0.01, 0.01]
     args.masked_kspace = True
-    args.model = '/media/rrtammyfs/Users/Itamar/reconstructed/V0_30_multi/CP_epoch57.pth'
+    args.mask_path = './Masks/mask_{}_{}.pickle'.format(args.sampling_percentage, args.img_size)
+    pprint(data)
 
-    args.input_path = '/HOME/reconstructed/data/IXIhdf5/test/'
+
     return args
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     args = get_args()
-    gpu_id = '2'
-    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    args.device = device
-    logging.info(f'Using device {device}')
+    # Set device and GPU (currently only single GPU training is supported
+    logging.info(f'Using device {args.device}')
+    if args.device == 'cuda':
+        logging.info(f'Using GPU {args.gpu_id}')
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
 
-    gen_net = WNet(args, masked_kspace=args.masked_kspace)
-
+    # Load network
     logging.info("Loading model {}".format(args.model))
+    net = WNet(args, masked_kspace=args.masked_kspace)
+    net.to(device=args.device)
 
-
-    gen_net.to(device=device)
-
-    checkpoint = torch.load(args.model, map_location=device)
-    gen_net.load_state_dict(checkpoint['model_state_dict'])
-
-    gen_net.eval()
+    checkpoint = torch.load(args.model, map_location=args.device)
+    net.load_state_dict(checkpoint['G_model_state_dict'])
 
     logging.info("Model loaded !")
 
-    in_files = glob.glob(args.input_path + '*.hdf5')
 
-    mask_path = args.mask_path
-    with open(mask_path, 'rb') as pickle_file:
+    with open(args.mask_path, 'rb') as pickle_file:
         masks_dictionary = pickle.load(pickle_file)
     masks = np.dstack((masks_dictionary['mask0'], masks_dictionary['mask1'], masks_dictionary['mask2']))
     maskNot = 1 - masks_dictionary['mask1']
 
-    for i, infile in enumerate(in_files):
+
+    test_files = glob.glob(os.path.join(args.predict_data_dir, '*.hdf5'))
+    for i, infile in enumerate(test_files):
         logging.info("\nPredicting image {} ...".format(infile))
 
         with h5py.File(infile, 'r') as f:
             img_shape = f['data'].shape
             fully_sampled_img = f['data'][:]
 
-        #preprocess data:
+        #Preprocess data:
         rec_imgs = np.zeros(img_shape)
-        rec_Kspaces = np.zeros(img_shape, dtype=np.csingle) #comples
+        rec_Kspaces = np.zeros(img_shape, dtype=np.csingle) #complex
         F_rec_Kspaces = np.zeros(img_shape)
         ZF_img = np.zeros(img_shape)
 
         for slice_num in range(img_shape[2]):
-            add = int(args.NumInputSlices / 2)
+            add = int(args.num_input_slices / 2)
             with h5py.File(infile, 'r') as f:
                 if slice_num == 0:
                     imgs = np.dstack((f['data'][:, :, 0], f['data'][:, :, 0], f['data'][:, :, 1]))
@@ -140,17 +116,17 @@ if __name__ == "__main__":
                 else:
                     imgs = np.dstack((f['data'][:, :, slice_num-1], f['data'][:, :, slice_num], f['data'][:, :, slice_num + 1]))
 
-            masked_Kspaces_np = np.zeros((args.NumInputSlices * 2, args.img_size, args.img_size))
+            masked_Kspaces_np = np.zeros((args.num_input_slices * 2, args.img_size, args.img_size))
             target_Kspace = np.zeros((2, args.img_size, args.img_size))
             target_img = np.zeros((1, args.img_size, args.img_size))
 
-            for sliceNum in range(args.NumInputSlices):
-                img = imgs[:, :, sliceNum]
+            for slice_j in range(args.num_input_slices):
+                img = imgs[:, :, slice_j]
                 kspace = fft2(img)
-                slice_masked_Kspace, slice_full_Kspace, slice_full_img = slice_preprocess(kspace, sliceNum,
+                slice_masked_Kspace, slice_full_Kspace, slice_full_img = slice_preprocess(kspace, slice_j,
                                                                                           masks, maskNot, args)
-                masked_Kspaces_np[sliceNum * 2:sliceNum * 2 + 2, :, :] = slice_masked_Kspace
-                if sliceNum == int(args.NumInputSlices / 2):
+                masked_Kspaces_np[slice_j * 2:slice_j * 2 + 2, :, :] = slice_masked_Kspace
+                if slice_j == int(args.num_input_slices / 2):
                     target_Kspace = slice_full_Kspace
                     target_img = slice_full_img
 
@@ -158,8 +134,8 @@ if __name__ == "__main__":
 
             masked_Kspaces = torch.from_numpy(masked_Kspaces).to(device=args.device, dtype=torch.float32)
 
-            #predict:
-            rec_img, rec_Kspace, F_rec_Kspace = gen_net(masked_Kspaces)
+            #Predict:
+            rec_img, rec_Kspace, F_rec_Kspace = net(masked_Kspaces)
 
             rec_img = np.squeeze(rec_img.data.cpu().numpy())
             rec_Kspace = np.squeeze(rec_Kspace.data.cpu().numpy())
@@ -174,13 +150,13 @@ if __name__ == "__main__":
 
 
 
-        if args.save:
+        if args.save_prediction:
             os.makedirs(args.save_path, exist_ok=True)
             out_file_name = args.save_path + os.path.split(infile)[1]
-            save_data(out_file_name. rec_imgs, F_rec_Kspaces, fully_sampled_img, ZF_img, rec_Kspaces)
+            save_data(out_file_name, rec_imgs, F_rec_Kspaces, fully_sampled_img, ZF_img, rec_Kspaces)
 
             logging.info("reconstructions save to: {}".format(out_file_name))
 
-        if args.viz:
+        if args.visualize_images:
             logging.info("Visualizing results for image {}, close to continue ...".format(infile))
             plot_imgs(rec_imgs, F_rec_Kspaces, fully_sampled_img, ZF_img)

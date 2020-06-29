@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from math import log10
 
 
@@ -13,7 +13,6 @@ def eval_net(net, loader, criterion, device):
     tot_ImL1 = 0
     tot_psnr = 0
     totKspaceL2 = 0
-    print("Validation")
     for batch in tqdm(loader):
         masked_Kspace = batch['masked_Kspaces']
         full_Kspace = batch['target_Kspace']
