@@ -93,37 +93,48 @@ def train(args):
                     rec_img, rec_Kspace, rec_mid_image = G_model(masked_Kspaces)
 
                     #Forward D for G loss:
-                    real_D_example = target_img.detach()
-                    fake_D_example = rec_img
-                    D_real_pred = D_model(real_D_example)
-                    D_fake_pred = D_model(fake_D_example)
+                    if args.GAN_training:
+                        real_D_example = target_img.detach()
+                        fake_D_example = rec_img
+                        D_real_pred = D_model(real_D_example)
+                        D_fake_pred = D_model(fake_D_example)
+                    else:
+                        D_fake_pred = None
 
                     #Calc G losses:
                     FullLoss, ImL2, ImL1, KspaceL2, advLoss = loss.calc_gen_loss(rec_img, rec_Kspace, target_img, target_Kspace, D_fake_pred)
 
                     #Forward D for D loss:
-                    D_fake_detach = D_model(fake_D_example.detach())   #Stop backprop to G by detaching
-                    D_real_loss,D_fake_loss,DLoss = loss.calc_disc_loss(D_real_pred, D_fake_detach)
-                    # Train/stop Train D criteria
-                    train_D = advLoss.item()<D_real_loss.item()*1.5
+                    if args.GAN_training:
+                        D_fake_detach = D_model(fake_D_example.detach())   #Stop backprop to G by detaching
+                        D_real_loss,D_fake_loss,DLoss = loss.calc_disc_loss(D_real_pred, D_fake_detach)
+                        # Train/stop Train D criteria
+                        train_D = advLoss.item()<D_real_loss.item()*1.5
 
                     #Optimize parameters
                     #Update G
-                    set_grad(D_model, False)  # No D update
+                    if args.GAN_training:
+                        set_grad(D_model, False)  # No D update
+
                     G_optimizer.zero_grad()
                     FullLoss.backward()
                     G_optimizer.step()
                     #Update D
-                    set_grad(D_model, True)  # enable backprop for D
-                    if train_D:
-                        D_optimizer.zero_grad()
-                        DLoss.backward()
-                        D_optimizer.step()
+                    if args.GAN_training:
+                        set_grad(D_model, True)  # enable backprop for D
+                        if train_D:
+                            D_optimizer.zero_grad()
+                            DLoss.backward()
+                            D_optimizer.step()
 
                     #Update progress bar
                     progress += 100*target_Kspace.shape[0]/len(train_dataset)
-                    pbar.set_postfix(**{'FullLoss': FullLoss.item(),'ImL2': ImL2.item(), 'ImL1': ImL1.item(),
-                                        'KspaceL2': KspaceL2.item(),'Adv G': advLoss.item(),'Adv D - Real' : D_real_loss.item(),'Adv D - Fake' : D_fake_loss.item(),'Train D': train_D, 'Prctg of train set': progress})
+                    if args.GAN_training:
+                        pbar.set_postfix(**{'FullLoss': FullLoss.item(),'ImL2': ImL2.item(), 'ImL1': ImL1.item(),
+                                            'KspaceL2': KspaceL2.item(),'Adv G': advLoss.item(),'Adv D - Real' : D_real_loss.item(),'Adv D - Fake' : D_fake_loss.item(),'Train D': train_D, 'Prctg of train set': progress})
+                    else:
+                        pbar.set_postfix(**{'FullLoss': FullLoss.item(), 'ImL2': ImL2.item(), 'ImL1': ImL1.item(),
+                                            'KspaceL2': KspaceL2.item(), 'Prctg of train set': progress})
                     pbar.update(target_Kspace.shape[0])# current batch size
 
             # On epoch end
@@ -141,9 +152,10 @@ def train(args):
                 writer.add_scalar('train/ImL2', ImL2.item(), epoch)
                 writer.add_scalar('train/ImL1', ImL1.item(), epoch)
                 writer.add_scalar('train/KspaceL2', KspaceL2.item(), epoch)
-                writer.add_scalar('train/G_AdvLoss', advLoss.item(), epoch)
-                writer.add_scalar('train/D_AdvLoss', DLoss.item(), epoch)
                 writer.add_scalar('train/learning_rate', G_optimizer.param_groups[0]['lr'], epoch)
+                if args.GAN_training:
+                    writer.add_scalar('train/G_AdvLoss', advLoss.item(), epoch)
+                    writer.add_scalar('train/D_AdvLoss', DLoss.item(), epoch)
 
                 writer.add_scalar('validation/FullLoss', val_FullLoss, epoch)
                 writer.add_scalar('validation/ImL2', val_ImL2, epoch)

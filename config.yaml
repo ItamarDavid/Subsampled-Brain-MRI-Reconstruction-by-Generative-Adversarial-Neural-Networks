@@ -21,6 +21,7 @@ crop_center: 128                                                    # Discrimina
 lr: 0.001                                                           # Learning rate
 epochs_n: 50                                                        # Number of epochs
 batch_size: 32                                                      # Batch size. Reduce if out of memory.Batch size of 32 256X256 images needs ~13GB memory.
+GAN_training: 1                                                     # 1 - Use GAN training. 0 - No GAN (no discriminator training and adverserial loss)
 loss_weights: [1000, 1000, 5, 0.1 ]                                 # Loss weighting [Imspac L2, Imspace L1, Kspace L2, GAN_Loss]. Losses are weighted to be roughly at the same scale.
 minmax_noise_val: [-0.01, 0.01]
 
