@@ -37,8 +37,8 @@ val_num_workers: 4                                                  # Number of 
 
                                  #Predict parameters
 save_prediction: 1                                                  # Save predicted images.
-save_path: '/HOME/published_code/predict_0'                         # Path to save predictions
+save_path: "SAVE_path"                                              # Path to save predictions
 visualize_images: 1                                                 # Visualize predicted images.
-model: '/HOME/published_code/run_0/CP_epoch37.pth'                  # Model checkpoint to use for prediction.
-predict_data_dir: '/HOME/published_code/data/test'                  # Test set files dir, should contain hdf5 preprocessed data.
+model: "model_path.pth"                                             # Model checkpoint to use for prediction.
+predict_data_dir: "IXI_PATH/test"                                   # Test set files dir, should contain hdf5 preprocessed data.
 
