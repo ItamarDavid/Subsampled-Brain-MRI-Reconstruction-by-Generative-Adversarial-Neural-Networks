@@ -82,6 +82,7 @@ if __name__ == "__main__":
 
     checkpoint = torch.load(args.model, map_location=args.device)
     net.load_state_dict(checkpoint['G_model_state_dict'])
+    net.eval()
 
     logging.info("Model loaded !")
 
