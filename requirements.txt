@@ -3,7 +3,7 @@
 Pillow == 6.2.1
 PyYAML == 5.3.1
 h5py == 2.10.0
-ipython == 6.0.0
+ipython == 7.16.3
 matplotlib == 3.1.1
 numpy == 1.17.3
 scipy == 0.19.1
